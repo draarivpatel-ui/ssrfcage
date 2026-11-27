@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: ${{ matrix.os }} Node ${{ matrix.node }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        node: [18, 20, 22, 24]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Verify zero dependencies
+        shell: bash
+        run: node -e "const p=require('./package.json'); if(Object.keys(p.dependencies || {}).length!==0 || Object.keys(p.devDependencies || {}).length!==0) process.exit(1)"
+      - name: Run deterministic test suite
+        shell: bash
+        run: npm test
+      - name: Verify generated CommonJS build is current
+        shell: bash
+        run: node scripts/build-cjs.mjs --check
+      - name: Run strict TypeScript declaration check
+        shell: bash
+        run: node scripts/check-types.mjs
+      - name: Run CLI smoke tests
+        shell: bash
+        run: |
+          node bin/ssrfcage.mjs --version
+          node bin/ssrfcage.mjs audit-url https://example.com/
+          if node bin/ssrfcage.mjs audit-url https://127.0.0.1/; then
+            echo 'loopback unexpectedly passed' >&2
+            exit 1
+          fi
+      - name: Run examples
+        shell: bash
+        run: |
+          node examples/basic.mjs
+          node examples/resolved-target.mjs
+          node examples/redirect-chain.mjs
+      - name: Inspect npm package dry run
+        shell: bash
+        run: npm pack --dry-run
+      - name: Verify package tarball contents
+        shell: bash
+        run: node scripts/check-pack.mjs

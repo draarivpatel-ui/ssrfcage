@@ -1,0 +1,72 @@
+{
+  "name": "ssrfcage",
+  "version": "1.0.0",
+  "description": "Zero-dependency SSRF, cloud metadata, DNS-rebinding, IP-obfuscation and redirect-chain security firewall",
+  "type": "module",
+  "license": "MIT",
+  "main": "./cjs/index.cjs",
+  "module": "./src/index.mjs",
+  "types": "./types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./types/index.d.ts",
+      "import": "./src/index.mjs",
+      "require": "./cjs/index.cjs"
+    },
+    "./runtime/node": {
+      "types": "./types/runtime-node.d.ts",
+      "import": "./src/runtime-node.mjs",
+      "require": "./cjs/runtime-node.cjs"
+    }
+  },
+  "bin": {
+    "ssrfcage": "./bin/ssrfcage.mjs"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "cjs/",
+    "types/",
+    "examples/",
+    "README.md",
+    "CHANGELOG.md",
+    "SECURITY.md",
+    "CONTRIBUTING.md",
+    "GOOD_FIRST_ISSUES.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "build": "node scripts/build-cjs.mjs",
+    "test": "node scripts/run-tests.mjs tests/*.test.mjs",
+    "test:all": "node scripts/build-cjs.mjs && node scripts/run-tests.mjs tests/*.test.mjs",
+    "check:types": "node scripts/check-types.mjs",
+    "check:pack": "node scripts/check-pack.mjs",
+    "verify": "npm test && node scripts/build-cjs.mjs --check && node scripts/check-types.mjs && node scripts/check-pack.mjs"
+  },
+  "dependencies": {},
+  "devDependencies": {},
+  "keywords": [
+    "ssrf",
+    "url",
+    "security",
+    "ipv6",
+    "cloud-metadata",
+    "dns-rebinding",
+    "redirect",
+    "zero-dependency"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/draarivpatel-ui/ssrfcage.git"
+  },
+  "bugs": {
+    "url": "https://github.com/draarivpatel-ui/ssrfcage/issues"
+  },
+  "homepage": "https://github.com/draarivpatel-ui/ssrfcage#readme",
+  "publishConfig": {
+    "access": "public"
+  }
+}
