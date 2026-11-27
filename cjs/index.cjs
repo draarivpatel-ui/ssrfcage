@@ -18,6 +18,7 @@ Object.defineProperty(exports, "nat64Ipv4", { enumerable: true, get: () => __ree
 Object.defineProperty(exports, "isNat64LocalUse", { enumerable: true, get: () => __reexport___ip_mjs.isNat64LocalUse });
 Object.defineProperty(exports, "ipv4CompatibleIpv4", { enumerable: true, get: () => __reexport___ip_mjs.ipv4CompatibleIpv4 });
 Object.defineProperty(exports, "siitIpv4", { enumerable: true, get: () => __reexport___ip_mjs.siitIpv4 });
+Object.defineProperty(exports, "isatapIpv4", { enumerable: true, get: () => __reexport___ip_mjs.isatapIpv4 });
 Object.defineProperty(exports, "isTeredo", { enumerable: true, get: () => __reexport___ip_mjs.isTeredo });
 Object.defineProperty(exports, "teredoClientIpv4", { enumerable: true, get: () => __reexport___ip_mjs.teredoClientIpv4 });
 Object.defineProperty(exports, "formatIpv6", { enumerable: true, get: () => __reexport___ip_mjs.formatIpv6 });

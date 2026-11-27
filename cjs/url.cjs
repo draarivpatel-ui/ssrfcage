@@ -103,7 +103,10 @@ function precheck(input, opts) {
   if (WHITESPACE_RE.test(input)) return fail('INVALID_URL', 'whitespace in URL', input);
   if (input.trim() !== input) return fail('INVALID_URL', 'leading or trailing whitespace in URL', input);
   if (input.startsWith('//')) return fail('INVALID_URL', 'scheme-relative URLs are not allowed', input);
-  if (/^(?:https?|ws|wss):(?:[^/]|$)/i.test(input) || /^(?:https?|ws|wss):\/\//i.test(input) === false && /^[a-z][a-z\d+.-]*:[^/]/i.test(input) && input.toLowerCase().startsWith('https:')) return fail('INVALID_URL', 'hierarchical URL schemes require an explicit authority', input);
+  const schemePrefix = /^[a-z][a-z\d+.-]*:/i.exec(input);
+  if (schemePrefix && opts.allowedSchemes.includes(schemePrefix[0].toLowerCase()) && !input.slice(schemePrefix[0].length).startsWith('//')) {
+    return fail('INVALID_URL', 'hierarchical URL schemes require an explicit authority', input);
+  }
   return null;
 }
 
@@ -226,6 +229,9 @@ function auditResolvedTarget(input, resolvedIps, options) {
     return { ok: false, code: 'PIN_MISMATCH', detail: 'resolved addresses do not include the URL IP literal', resolvedIps: unique, pinned: false };
   }
   const pinnedIp = ownOption(options, 'pinnedIp');
+  if (pinnedIp !== undefined && typeof pinnedIp !== 'string') {
+    return { ok: false, code: 'PIN_MISMATCH', detail: 'pinnedIp must be a string IP address', resolvedIps: unique, pinned: false };
+  }
   if (typeof pinnedIp === 'string') {
     const normalizedPin = normalizeIp(pinnedIp);
     if (normalizedPin === null || !unique.includes(normalizedPin)) {

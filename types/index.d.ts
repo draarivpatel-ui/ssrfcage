@@ -205,6 +205,7 @@ export declare function nat64Ipv4(groups: readonly number[] | null): string | nu
 export declare function isNat64LocalUse(groups: readonly number[] | null): boolean;
 export declare function ipv4CompatibleIpv4(groups: readonly number[] | null): string | null;
 export declare function siitIpv4(groups: readonly number[] | null): string | null;
+export declare function isatapIpv4(groups: readonly number[] | null): string | null;
 export declare function isTeredo(groups: readonly number[] | null): boolean;
 export declare function teredoClientIpv4(groups: readonly number[] | null): string | null;
 export declare function formatIpv6(groups: readonly number[]): string | null;

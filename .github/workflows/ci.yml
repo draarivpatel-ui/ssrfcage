@@ -37,13 +37,7 @@ jobs:
         run: node scripts/check-types.mjs
       - name: Run CLI smoke tests
         shell: bash
-        run: |
-          node bin/ssrfcage.mjs --version
-          node bin/ssrfcage.mjs audit-url https://example.com/
-          if node bin/ssrfcage.mjs audit-url https://127.0.0.1/; then
-            echo 'loopback unexpectedly passed' >&2
-            exit 1
-          fi
+        run: node scripts/cli-smoke.mjs
       - name: Run examples
         shell: bash
         run: |

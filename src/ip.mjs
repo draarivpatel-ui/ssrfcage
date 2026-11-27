@@ -174,6 +174,13 @@ export function isNat64LocalUse(groups) {
     && groups[0] === 0x0064 && groups[1] === 0xff9b && groups[2] === 0x0001;
 }
 
+/** Extract the embedded IPv4 from an ISATAP interface identifier, if present. */
+export function isatapIpv4(groups) {
+  if (!groups || groups.length !== 8) return null;
+  if ((groups[4] !== 0x0000 && groups[4] !== 0x0200) || groups[5] !== 0x5efe) return null;
+  return fromUint32(((groups[6] << 16) | groups[7]) >>> 0);
+}
+
 /** Extract the embedded IPv4 from an IPv4-compatible (::/96) address. */
 export function ipv4CompatibleIpv4(groups) {
   if (!groups || groups.length !== 8) return null;
@@ -266,7 +273,14 @@ const IPV6_RANGES = [
   { name: 'orchid-deprecated', base: [0x2001, 0x0010, 0, 0, 0, 0, 0, 0], bits: 28 },
   { name: 'orchidv2', base: [0x2001, 0x0020, 0, 0, 0, 0, 0, 0], bits: 28 },
   { name: 'drone-remote-id', base: [0x2001, 0x0030, 0, 0, 0, 0, 0, 0], bits: 28 },
+  // 2001::/23 is the IETF protocol-assignment parent block. More specific
+  // entries above keep their precise names; every unassigned descendant is
+  // still blocked instead of falling through as globally routable space.
+  { name: 'ietf-protocol', base: [0x2001, 0, 0, 0, 0, 0, 0, 0], bits: 23 },
   { name: 'documentation', base: [0x2001, 0x0db8, 0, 0, 0, 0, 0, 0], bits: 32 },
+  { name: 'direct-delegation-as112', base: [0x2620, 0x004f, 0x8000, 0, 0, 0, 0, 0], bits: 48 },
+  { name: 'srv6-sids', base: [0x5f00, 0, 0, 0, 0, 0, 0, 0], bits: 16 },
+  { name: 'dummy-v6', base: [0x0100, 0, 0, 0x0001, 0, 0, 0, 0], bits: 64 },
   { name: 'documentation-2', base: [0x3fff, 0, 0, 0, 0, 0, 0, 0], bits: 20 },
   { name: 'discard-only', base: [0x0100, 0, 0, 0, 0, 0, 0, 0], bits: 64 },
   { name: 'aws-metadata', base: [0xfd00, 0xec2, 0, 0, 0, 0, 0, 0x254], bits: 0 },
@@ -312,6 +326,8 @@ export function classifyIp(host) {
     if (siit !== null) return transitionClass(siit, 'ipv4-translated');
     if (isNat64LocalUse(groups)) return 'nat64-local-use';
     if (isTeredo(groups)) return 'private';
+    const isatap = isatapIpv4(groups);
+    if (isatap !== null) return transitionClass(isatap, 'isatap');
     const compatible = ipv4CompatibleIpv4(groups);
     if (compatible !== null) {
       // :: and ::1 are RFC 4291 special forms, not IPv4-compatible addresses.
@@ -391,6 +407,8 @@ function embeddedIpv4(groups) {
   if (nat !== null) return nat;
   const siit = siitIpv4(groups);
   if (siit !== null) return siit;
+  const isatap = isatapIpv4(groups);
+  if (isatap !== null) return isatap;
   return ipv4CompatibleIpv4(groups);
 }
 

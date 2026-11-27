@@ -16,6 +16,17 @@ function hopKey(result) {
 // fetch follows exactly these statuses. A 300, 304, 305, 306 or unknown 3xx
 // with a Location header is returned to the caller, never followed.
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+const SENSITIVE_HEADER_NAMES = Object.freeze([
+  'authorization',
+  'proxy-authorization',
+  'cookie',
+  'cookie2',
+  'x-api-key',
+  'x-auth-token',
+  'x-csrf-token',
+  'x-xsrf-token',
+  'referer',
+]);
 
 function isRedirectStatus(status) {
   return typeof status === 'number' && REDIRECT_STATUSES.has(status);
@@ -50,6 +61,7 @@ function redirectInit(status, init, crossOrigin) {
   if (crossOrigin && next.headers) {
     const headers = new Headers(next.headers);
     headers.delete('host');
+    for (const name of SENSITIVE_HEADER_NAMES) headers.delete(name);
     next.headers = headers;
   }
   if (dropBody) {
@@ -111,7 +123,7 @@ async function validateRedirectChain(urls, options) {
     const headerNames = suppliedHeaders && typeof suppliedHeaders === 'object'
       ? Object.keys(suppliedHeaders).map((name) => name.toLowerCase())
       : [];
-    const sensitive = new Set(['authorization', 'proxy-authorization', 'cookie', 'cookie2', 'x-api-key', 'x-auth-token', 'x-csrf-token', 'x-xsrf-token']);
+    const sensitive = new Set(SENSITIVE_HEADER_NAMES);
     hops.push({
       url: validation.normalized,
       hostname: validation.hostname,
@@ -149,10 +161,7 @@ function createSafeFetch(options) {
     let currentInit = { ...(init || {}) };
     delete currentInit.credentials;
     const headers = new Headers(currentInit.headers || {});
-    headers.delete('authorization');
-    headers.delete('cookie');
-    headers.delete('proxy-authorization');
-    headers.delete('referer');
+    for (const name of SENSITIVE_HEADER_NAMES) headers.delete(name);
     currentInit.headers = headers;
     currentInit.redirect = 'manual';
 

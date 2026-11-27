@@ -16,7 +16,7 @@ function safeString(value) {
 /** Mask credentials and control characters so a result or error never leaks them. */
 function redactInput(value) {
   let text = safeString(value).replace(CONTROL_RE, '?');
-  text = text.replace(/([a-z][a-z\d+.-]*:\/\/)([^/@\s]*@)/i, '$1[redacted]@');
+  text = text.replace(/([a-z][a-z\d+.-]*:\/\/)([^/?#]*)@/i, '$1[redacted]@');
   if (text.length > MAX_INPUT_DISPLAY) text = `${text.slice(0, MAX_INPUT_DISPLAY)}...[truncated]`;
   return text;
 }

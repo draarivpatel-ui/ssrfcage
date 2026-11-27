@@ -95,7 +95,7 @@ This library is a validation and policy layer. It cannot stop a resolver or tran
 
 ## Development
 
-The deterministic suite contains 663 `node:test` tests.
+The deterministic suite contains 671 `node:test` tests.
 
 
 ```bash

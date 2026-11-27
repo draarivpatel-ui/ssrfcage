@@ -37,11 +37,15 @@ export function scanToolArguments(value, options) {
   const findings = [];
   const seen = new WeakSet();
   let nodes = 0;
+  let depthTruncated = false;
 
   function visit(node, path, depth) {
     nodes += 1;
     if (nodes > maxNodes) return;
-    if (depth > maxDepth) return;
+    if (depth > maxDepth) {
+      depthTruncated = true;
+      return;
+    }
     try {
       visitValue(node, path, depth);
     } catch {
@@ -88,6 +92,6 @@ export function scanToolArguments(value, options) {
     findings,
     rejected: rejected.length,
     scanned: findings.length,
-    truncated: nodes > maxNodes,
+    truncated: nodes > maxNodes || depthTruncated,
   };
 }
