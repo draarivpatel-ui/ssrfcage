@@ -1,5 +1,7 @@
 # ssrfcage
 
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/draarivpatel-ui/ssrfcage/badge)](https://scorecard.dev/viewer/?uri=github.com/draarivpatel-ui/ssrfcage)
+
 `ssrfcage` is a zero-dependency Node.js 18+ SSRF security firewall. It validates URLs, IP literals, resolver answers and redirect chains before server-side fetch code can reach loopback, private networks, cloud metadata endpoints, link-local services or parser-confusing transition addresses.
 
 The package has no runtime dependencies and ships both ESM and CommonJS entry points plus TypeScript declarations.
