@@ -69,6 +69,27 @@ Validates every absolute URL in a redirect chain, enforces the maximum hop count
 
 Wraps `fetch` with manual redirect handling. Every hop is validated and resolved again, redirect downgrade is rejected, methods and bodies follow redirect semantics, and credentials are removed rather than forwarded into an unsafe hop. For complete rebinding protection the injected transport must connect to the pinned validated address; ordinary `fetch` performs its own DNS lookup.
 
+### Resolver contract (`options.dns`)
+
+`resolveSafe`, `auditRedirectChain`, and `createSafeFetchGuard` accept an optional async resolver `dns(hostname)` (or `dns: false` to skip resolution):
+
+- **String records:** Arrays of IP literal strings such as `['93.184.216.34']`.
+- **Object records:** Arrays of `{ address: string, family?: number }` objects (compatible with `dns.lookup(..., { all: true })`); entries without a string `address` (such as `null` or non-objects) are ignored.
+- **Empty answers:** Returning `[]`, a non-array, or only invalid entries fails closed with `ok: false` and `code: 'RESOLUTION_FAILED'`. Throwing or timing out also fails with `RESOLUTION_FAILED` without leaking internal error text.
+- **Mixed families:** IPv4 and IPv6 answers may appear together. Every returned address is audited and classified; if even one address is private, loopback, link-local, or otherwise non-public, the lookup fails with `code: 'PRIVATE_IP'`. Validated addresses are returned sorted.
+- **Rebinding checks:** When `checkRebinding: true` is set, the resolver is called twice and the sorted answer sets must match (`code: 'DNS_REBIND'` otherwise).
+
+```js
+import { lookup } from 'node:dns/promises';
+import { createSafeFetchGuard } from 'ssrfcage';
+
+// Every address returned by `dns` is audited before `fetch` is called.
+const safeFetch = createSafeFetchGuard({
+  dns: async (hostname) => lookup(hostname, { all: true, verbatim: true }),
+  checkRebinding: true,
+});
+```
+
 ## CLI
 
 ```bash
