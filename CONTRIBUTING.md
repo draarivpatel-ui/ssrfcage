@@ -4,7 +4,7 @@ Thanks for helping improve ssrfcage. Security correctness takes priority over fe
 
 ## Development setup
 
-No install step is required. The project has zero runtime and zero development dependencies.
+The published library has zero runtime dependencies. Run `npm ci` before `npm run test:fuzz`; the only development dependency is fast-check.
 
 ```sh
 git clone <repository-url>

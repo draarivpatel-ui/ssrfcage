@@ -9,7 +9,7 @@
 
 ## Reporting a vulnerability
 
-Please **Privately report** security issues using GitHub's **Security Advisory** feature on this repository: open the **Security** tab, choose **Report a vulnerability**, and fill in the private form. Do not open a public issue for an exploitable defect.
+Please **Privately report** security issues through the repository's [GitHub Security Advisory form](https://github.com/draarivpatel-ui/ssrfcage/security/advisories/new). Do not open a public issue for an exploitable defect.
 
 Include:
 
@@ -23,5 +23,6 @@ Include:
 - Acknowledgement: within 48 hours.
 - Initial assessment: within 5 business days.
 - Fix or mitigation plan: within 10 business days for confirmed issues.
+- Coordinated public disclosure: up to 90 days by default, adjusted by mutual agreement when exploitation or user risk requires a different date.
 
 Severity is judged by whether the issue allows a blocked destination to be reached, causes a false negative in redirect chains, or leaks sensitive data through errors.
