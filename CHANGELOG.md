@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Reject IPv4 parts that start with `0` but contain `8` or `9` (for example `127.0.0.08`) instead of decoding them as decimal, matching the WHATWG URL parser and `inet_aton`.
+- Add a table-driven IPv4 mutation fixture covering decimal, octal, hex, binary, shorthand, overlong and malformed-separator forms.
+
 ## 1.0.0
 
 Initial release.
