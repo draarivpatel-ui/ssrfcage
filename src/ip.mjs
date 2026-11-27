@@ -2,6 +2,8 @@
 // Zero dependencies. All parsers are strict and reject ambiguous/oversized input.
 
 const DEC = /^\d+$/;
+// Decimal IPv4 parts never start with 0; a leading 0 selects octal (WHATWG URL, inet_aton).
+const IPV4_DEC = /^(?:0|[1-9]\d*)$/;
 const HEX = /^0[xX][0-9a-fA-F]+$/;
 const OCT = /^0[oO][0-7]+$/;
 const LEGACY_OCT = /^0[0-7]+$/;
@@ -17,7 +19,7 @@ function parseOctet(token) {
   else if (OCT.test(token)) { base = 8; body = token.slice(2); }
   else if (LEGACY_OCT.test(token)) { base = 8; body = token.slice(1); }
   else if (BIN.test(token)) { base = 2; body = token.slice(2); }
-  else if (!DEC.test(token)) return null;
+  else if (!IPV4_DEC.test(token)) return null;
   if (body.length === 0 || body.length > 16) return null;
   let value = 0;
   for (const ch of body) {
@@ -36,7 +38,7 @@ function parseOctet(token) {
 export function parseIpv4(host) {
   if (typeof host !== 'string' || host.length === 0 || host.length > 64) return null;
   if (host.includes('%')) return null;
-  if (DEC.test(host) || HEX.test(host) || OCT.test(host) || BIN.test(host) || LEGACY_OCT.test(host)) {
+  if (IPV4_DEC.test(host) || HEX.test(host) || OCT.test(host) || BIN.test(host) || LEGACY_OCT.test(host)) {
     let value = 0;
     if (HEX.test(host)) value = Number.parseInt(host.slice(2), 16);
     else if (OCT.test(host)) value = Number.parseInt(host.slice(2), 8);
