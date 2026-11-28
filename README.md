@@ -10,6 +10,7 @@ The package has no runtime dependencies and ships both ESM and CommonJS entry po
 
 - RFC 1918, RFC 4193, RFC 6598, loopback, link-local, multicast, unspecified, benchmark, documentation, protocol and reserved IPv4 and IPv6 ranges.
 - Cloud metadata endpoints including `169.254.169.254`, `169.254.170.2`, `fd00:ec2::254`, Alibaba `100.100.100.200`, Azure `168.63.129.16`, `metadata.google.internal` and common local metadata names.
+- Single-label DNS hostnames such as `intranet`, `router`, `nas`, `local` and `internal`. They are accepted only with `allowSingleLabelHostnames: true` or an exact bare `hostPolicy.allow` entry. A bare single-label entry matches only that exact host unless `hostPolicy.allowPublicSuffix` is explicitly true.
 - Decimal integer IPv4 such as `2130706433`, octal IPv4 such as `0177.0.0.1`, hexadecimal IPv4 such as `0x7f000001`, shorthand forms such as `127.1`, trailing-dot host bypasses and invalid numeric-looking hosts.
 - IPv4-mapped, IPv4-compatible, translated, NAT64, 6to4, Teredo and ISATAP IPv6 transition forms, including forms that hide private IPv4 payloads.
 - Zone identifiers, backslashes, embedded credentials, `@` authority confusion, unsafe schemes, noncanonical ports, missing authorities and non-default ports.
@@ -49,7 +50,7 @@ const chain = await auditRedirectChain([
 
 ### `auditUrl(input, options)`
 
-Synchronous URL audit. The default policy allows only `https:` on port 443, forbids userinfo, and rejects non-public IP literals and local hostnames. It never resolves DNS or performs network I/O.
+Synchronous URL audit. The default policy allows only `https:` on port 443, forbids userinfo, and rejects non-public IP literals, local hostnames and single-label DNS hostnames. It never resolves DNS or performs network I/O. Host policy patterns are trimmed, case-folded, limited to one root trailing dot after URL-compatible IDNA dot folding and canonicalized through URL-compatible IDNA with canonical punycode retained. They use URL-compatible host shape validation rather than the stricter public `normalizeHost` DNS-label validation, so target-valid spellings such as underscore labels keep existing policy matches. IPv6 literal rules accept bare or bracketed spellings and canonicalize compressed and expanded forms. Allow and deny rules share this normalization. Allowlist evaluation is order-independent, a configured allowlist with no usable entries remains restrictive, and broad public suffix entries fail closed unless `hostPolicy.allowPublicSuffix` is true.
 
 ### `auditIp(input)`
 
@@ -57,7 +58,7 @@ Structured audit of one IPv4 or IPv6 literal. Legacy IPv4 spellings are canonica
 
 ### `normalizeHost(input)`
 
-Canonicalizes a hostname or IP literal and returns `null` for malformed input. It lowercases DNS names, removes a root trailing dot, canonicalizes legacy IPv4 forms and compresses IPv6.
+Canonicalizes a hostname or IP literal and returns `null` for malformed input. It lowercases DNS names, removes one root trailing dot and rejects additional trailing dots, canonicalizes legacy IPv4 forms and compresses IPv6.
 
 ### `auditResolvedTarget(input, resolvedIps, options)`
 
@@ -70,6 +71,10 @@ Validates every absolute URL in a redirect chain, enforces the maximum hop count
 ### `createSafeFetchGuard(options)`
 
 Wraps `fetch` with manual redirect handling. Every hop is validated and resolved again, redirect downgrade is rejected, methods and bodies follow redirect semantics, and credentials are removed rather than forwarded into an unsafe hop. For complete rebinding protection the injected transport must connect to the pinned validated address; ordinary `fetch` performs its own DNS lookup.
+
+### `scanToolArguments(value, options)`
+
+Recursively scans nested JSON-shaped tool arguments for URL strings without evaluating the input. The scan is bounded by `maxDepth` and `maxNodes`. If either bound truncates coverage, the result has `truncated: true` and `ok: false`, because an incomplete scan cannot approve its input.
 
 ## CLI
 
@@ -97,7 +102,7 @@ This library is a validation and policy layer. It cannot stop a resolver or tran
 
 ## Development
 
-The deterministic suite contains 671 `node:test` tests.
+The deterministic suite contains 694 `node:test` tests.
 
 
 ```bash

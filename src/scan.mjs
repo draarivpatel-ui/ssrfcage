@@ -87,11 +87,12 @@ export function scanToolArguments(value, options) {
 
   visit(value, '$', 0);
   const rejected = findings.filter((finding) => !finding.ok);
+  const truncated = nodes > maxNodes || depthTruncated;
   return {
-    ok: rejected.length === 0,
+    ok: rejected.length === 0 && !truncated,
     findings,
     rejected: rejected.length,
     scanned: findings.length,
-    truncated: nodes > maxNodes || depthTruncated,
+    truncated,
   };
 }

@@ -34,8 +34,11 @@ export interface DnsResolver {
 }
 
 export interface HostPolicy {
+  /** Canonicalized host patterns allowed after every deny rule. Bare non-public-suffix single labels match exactly unless allowPublicSuffix is true. */
   readonly allow?: readonly string[];
+  /** Host patterns denied before any allow rule. */
   readonly deny?: readonly string[];
+  /** Permit broad public suffix and single-label suffix matching. Default false. */
   readonly allowPublicSuffix?: boolean;
 }
 
@@ -44,6 +47,8 @@ export interface ValidateOptions {
   readonly allowUserinfo?: boolean;
   readonly allowedPorts?: readonly number[] | 'default-only' | 'any';
   readonly hostPolicy?: HostPolicy;
+  /** Permit single-label DNS hostnames even without an exact allowlist entry. Default false. */
+  readonly allowSingleLabelHostnames?: boolean;
   readonly dns?: DnsResolver | false;
   readonly checkRebinding?: boolean;
   readonly rebindDelayMs?: number;
@@ -169,6 +174,7 @@ export declare const DEFAULT_OPTIONS: Readonly<{
   allowedSchemes: readonly string[];
   allowUserinfo: false;
   allowedPorts: 'default-only';
+  allowSingleLabelHostnames: false;
   idna: 'ascii-only';
   maxInputLength: number;
   checkRebinding: false;

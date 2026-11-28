@@ -23,6 +23,7 @@ export const DEFAULT_OPTIONS = Object.freeze({
   allowedSchemes: Object.freeze(['https:']),
   allowUserinfo: false,
   allowedPorts: 'default-only',
+  allowSingleLabelHostnames: false,
   idna: 'ascii-only',
   maxInputLength: 8192,
   checkRebinding: false,

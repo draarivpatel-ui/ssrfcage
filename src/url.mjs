@@ -58,8 +58,9 @@ function copyStrings(value) {
 
 function normalizeHostPolicy(policy) {
   const source = policy && typeof policy === 'object' ? policy : {};
+  const configuredAllow = ownOption(source, 'allow');
   return {
-    allow: copyStrings(ownOption(source, 'allow')),
+    allow: Array.isArray(configuredAllow) ? configuredAllow.slice() : [],
     deny: copyStrings(ownOption(source, 'deny')),
     allowPublicSuffix: ownOption(source, 'allowPublicSuffix') === true,
   };
@@ -78,6 +79,7 @@ function normalizeOptions(options) {
     allowUserinfo: ownOption(opts, 'allowUserinfo') === true,
     allowedPorts: Array.isArray(allowedPorts) ? allowedPorts.slice() : allowedPorts,
     hostPolicy: normalizeHostPolicy(ownOption(opts, 'hostPolicy')),
+    allowSingleLabelHostnames: ownOption(opts, 'allowSingleLabelHostnames') === true,
     maxInputLength: Number.isInteger(maxInputLength) && maxInputLength > 0
       ? maxInputLength : DEFAULT_MAX_INPUT_LENGTH,
     idna: ownOption(opts, 'idna') === 'allow-unicode' ? 'allow-unicode' : 'ascii-only',
@@ -110,35 +112,140 @@ function precheck(input, opts) {
   return null;
 }
 
-function stripTrailingDots(host) {
-  let result = host;
-  while (result.endsWith('.')) result = result.slice(0, -1);
-  return result;
+function stripSingleTrailingDot(host) {
+  if (!host.endsWith('.')) return host;
+  const result = host.slice(0, -1);
+  return result.endsWith('.') ? null : result;
+}
+
+function endsInIpv4Number(host) {
+  const finalLabel = host.slice(host.lastIndexOf('.') + 1);
+  return /^\d+$/.test(finalLabel) || /^0x[0-9a-f]*$/i.test(finalLabel);
+}
+
+function trailingRootDotCount(host) {
+  let count = 0;
+  for (let index = host.length - 1; index >= 0; index -= 1) {
+    const char = host[index];
+    if (char !== '.' && char !== '\u3002' && char !== '\uff0e' && char !== '\uff61') break;
+    count += 1;
+  }
+  return count;
+}
+
+function canonicalizeDnsOrIpHost(host, allowPunycode, urlCompatibleLabels = false) {
+  if (!host || host.startsWith('.') || host.includes('..') || host.length > 253) return null;
+  const ip = normalizeIp(host);
+  if (ip !== null) return ip;
+  if (host.includes(':')) return null;
+  // WHATWG treats a host whose final label is ASCII digits or a 0x-prefixed
+  // hexadecimal number as an IPv4 spelling. When strict parsing has already
+  // failed, that spelling must not fall through as DNS. Hex-letter words such
+  // as db and deadbeef are not numeric final labels, so they remain valid DNS
+  // labels.
+  if (endsInIpv4Number(host)) return null;
+  const labels = host.split('.');
+  if (labels.some((label) => label.length === 0 || label.length > 63)) return null;
+  if (!allowPunycode && labels.some((label) => label.startsWith('xn--'))) return null;
+  if (!urlCompatibleLabels && labels.some((label) => !/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label))) return null;
+  return host;
+}
+
+function canonicalizePatternHostname(host) {
+  if (typeof host !== 'string' || host.length === 0) return null;
+  const rootDots = trailingRootDotCount(host);
+  if (rootDots > 1 || host.length - rootDots > 253) return null;
+  if (CONTROL_RE.test(host) || WHITESPACE_RE.test(host) || host.includes('\\') || host.includes('%')) return null;
+  if (/[/@?#]/.test(host)) return null;
+  // IPv6 literals need the one tolerated trailing root dot stripped before
+  // bracket handling because the WHATWG parser rejects it inside brackets.
+  // DNS names keep it through IDNA normalization so a hidden second root dot
+  // is still present for the post-normalization count below.
+  const isIpv6Candidate = host.includes(':');
+  const body = rootDots === 1 && isIpv6Candidate ? host.slice(0, -1) : host;
+  const urlHost = body.includes(':') && !(body.startsWith('[') && body.endsWith(']')) ? `[${body}]` : body;
+  let parsed;
+  try {
+    parsed = new URL(`https://${urlHost}/`);
+  } catch {
+    return null;
+  }
+  if (parsed.username || parsed.password || parsed.port) return null;
+  let canonical = parsed.hostname.toLowerCase();
+  if (canonical.startsWith('[') && canonical.endsWith(']')) canonical = canonical.slice(1, -1);
+  const canonicalRootDots = trailingRootDotCount(canonical);
+  if (canonicalRootDots > 1) return null;
+  if (canonicalRootDots === 1) canonical = canonical.slice(0, -1);
+  return canonicalizeDnsOrIpHost(canonical, true, true);
+}
+
+function normalizeHostPattern(pattern) {
+  if (typeof pattern !== 'string') return null;
+  let normalized = pattern.trim();
+  if (!normalized) return null;
+  const bare = !normalized.startsWith('*.') && !normalized.startsWith('.');
+  if (normalized.startsWith('*.')) normalized = normalized.slice(2);
+  else if (normalized.startsWith('.')) normalized = normalized.slice(1);
+  if (!normalized) return null;
+  const host = canonicalizePatternHostname(normalized);
+  if (host === null) return null;
+  return { host, bare };
+}
+
+function normalizedHostPatternMatches(host, normalized) {
+  return host === normalized.host || host.endsWith(`.${normalized.host}`);
 }
 
 function hostPatternMatches(host, pattern) {
-  if (typeof pattern !== 'string' || !pattern) return false;
-  let normalized = stripTrailingDots(pattern.trim().toLowerCase());
-  if (!normalized) return false;
-  if (normalized.startsWith('*.')) normalized = normalized.slice(2);
-  else if (normalized.startsWith('.')) { /* apex plus subdomains */ }
-  const exact = normalized.startsWith('.') ? normalized.slice(1) : normalized;
-  if (host === exact) return true;
-  if (normalized.startsWith('.')) {
-    const base = normalized.slice(1);
-    return host === base || host.endsWith(`.${base}`);
+  const normalized = normalizeHostPattern(pattern);
+  if (normalized === null) return false;
+  return normalizedHostPatternMatches(host, normalized);
+}
+
+function allowlistPatternMatches(host, pattern, allowPublicSuffix) {
+  const normalized = normalizeHostPattern(pattern);
+  if (normalized === null) return false;
+  if (
+    normalized.bare
+    && allowPublicSuffix !== true
+    && isSingleLabelDnsHostname(normalized.host)
+    && !PUBLIC_SUFFIXES.has(normalized.host)
+  ) {
+    return host === normalized.host;
   }
-  return host.endsWith(`.${exact}`);
+  return normalizedHostPatternMatches(host, normalized);
 }
 
 function isPublicSuffixPattern(pattern) {
-  if (typeof pattern !== 'string') return false;
-  const normalized = pattern.toLowerCase().replace(/^\*\./, '').replace(/^\./, '').replace(/\.$/, '');
-  return PUBLIC_SUFFIXES.has(normalized) || !normalized.includes('.');
+  const normalized = normalizeHostPattern(pattern);
+  if (normalized === null) return false;
+  return PUBLIC_SUFFIXES.has(normalized.host) || isSingleLabelDnsHostname(normalized.host);
 }
 
-function checkHostPolicy(hostname, hostPolicy) {
-  const host = stripTrailingDots(hostname.toLowerCase());
+function isForbiddenBroadSuffixEntry(pattern) {
+  const normalized = normalizeHostPattern(pattern);
+  if (normalized === null || !isPublicSuffixPattern(pattern)) return false;
+  if (isSingleLabelDnsHostname(normalized.host)) {
+    return !normalized.bare || PUBLIC_SUFFIXES.has(normalized.host);
+  }
+  return true;
+}
+
+function isExactHostAllowlistEntry(host, pattern) {
+  const normalized = normalizeHostPattern(pattern);
+  return normalized !== null
+    && normalized.bare
+    && !PUBLIC_SUFFIXES.has(normalized.host)
+    && normalized.host === host;
+}
+
+function isSingleLabelDnsHostname(host) {
+  return !host.includes('.') && !host.includes(':') && normalizeIp(host) === null;
+}
+
+function checkHostPolicy(hostname, hostPolicy, allowSingleLabelHostnames) {
+  const host = stripSingleTrailingDot(hostname.toLowerCase());
+  if (host === null) return fail('INVALID_URL', 'hostname contains consecutive dots', hostname);
   const deny = Array.isArray(hostPolicy.deny) ? hostPolicy.deny : [];
   const allow = Array.isArray(hostPolicy.allow) ? hostPolicy.allow : [];
   if (BLOCKED_HOSTNAMES.has(host)) return fail('HOST_DENIED', 'hostname is on the built-in deny list', host);
@@ -149,16 +256,27 @@ function checkHostPolicy(hostname, hostPolicy) {
     if (hostPatternMatches(host, pattern)) return fail('HOST_DENIED', `hostname denied by policy (${pattern})`, host);
   }
   if (allow.length > 0) {
+    if (hostPolicy.allowPublicSuffix !== true) {
+      const broadSuffix = allow.find((pattern) => isForbiddenBroadSuffixEntry(pattern));
+      if (broadSuffix !== undefined) {
+        return fail('HOST_NOT_ALLOWED', `public suffix cannot be allowlisted (${broadSuffix})`, host);
+      }
+    }
     let allowed = false;
     for (const pattern of allow) {
-      if (isPublicSuffixPattern(pattern)) {
-        if (hostPolicy.allowPublicSuffix !== true) {
-          return fail('HOST_NOT_ALLOWED', `public suffix cannot be allowlisted (${pattern})`, host);
-        }
+      if (allowlistPatternMatches(host, pattern, hostPolicy.allowPublicSuffix === true)) {
+        allowed = true;
+        break;
       }
-      if (hostPatternMatches(host, pattern)) { allowed = true; break; }
     }
     if (!allowed) return fail('HOST_NOT_ALLOWED', 'hostname is not on the allow list', host);
+  }
+  if (
+    isSingleLabelDnsHostname(host)
+    && allowSingleLabelHostnames !== true
+    && !allow.some((pattern) => isExactHostAllowlistEntry(host, pattern))
+  ) {
+    return fail('HOST_DENIED', 'single-label DNS hostnames are not public destinations', host);
   }
   return null;
 }
@@ -169,18 +287,10 @@ export function normalizeHost(input) {
   if (CONTROL_RE.test(input) || WHITESPACE_RE.test(input) || input.includes('\\') || input.includes('%')) return null;
   let host = input.toLowerCase();
   if (host.startsWith('[') && host.endsWith(']')) host = host.slice(1, -1);
-  if (host.endsWith('..')) return null;
-  while (host.endsWith('.')) host = host.slice(0, -1);
+  host = stripSingleTrailingDot(host);
+  if (host === null) return null;
   if (!host || host.startsWith('.') || host.includes('..') || host.length > 253) return null;
-  const ip = normalizeIp(host);
-  if (ip !== null) return ip;
-  if (host.includes(':')) return null;
-  if (/^[\dA-Fa-fx.]+$/.test(host)) return null;
-  const labels = host.split('.');
-  if (labels.some((label) => label.length === 0 || label.length > 63)) return null;
-  if (labels.some((label) => label.startsWith('xn--'))) return null;
-  if (labels.some((label) => !/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label))) return null;
-  return host;
+  return canonicalizeDnsOrIpHost(host, false);
 }
 
 function addressesFromResolution(resolvedIps) {
@@ -353,7 +463,7 @@ export function validateUrl(input, options) {
     }
   }
 
-  const policyFailure = checkHostPolicy(hostname, hostPolicyOrEmpty(opts));
+  const policyFailure = checkHostPolicy(hostname, hostPolicyOrEmpty(opts), opts.allowSingleLabelHostnames);
   if (policyFailure) return { ...policyFailure, input: redactInput(input) };
 
   const defaultPort = DEFAULT_PORTS[url.protocol];
@@ -409,12 +519,14 @@ export function assertSafeUrl(input, options) {
 export function isPublicHostname(hostname, options) {
   if (typeof hostname !== 'string' || !hostname) return false;
   const opts = normalizeOptions(options);
-  const host = stripTrailingDots(hostname.toLowerCase().replace(/^\[|\]$/g, ''));
-  if (!host || host.startsWith('.') || host.includes('..')) return false;
+  let host = stripSingleTrailingDot(hostname.toLowerCase().replace(/^\[|\]$/g, ''));
+  if (host === null || !host || host.startsWith('.') || host.includes('..')) return false;
   // Only plain ASCII host characters count. Unicode dot and digit lookalikes
   // are folded into a different host by an IDNA-aware parser downstream, so a
   // policy check on the raw string would approve a host that resolves elsewhere.
   if (!/^[a-z0-9._:-]+$/.test(host)) return false;
+  const normalizedIp = normalizeIp(host);
+  if (normalizedIp !== null) host = normalizedIp;
   const ipClass = classifyIp(host);
   if (host.includes(':')) {
     // A colon-bearing host must be a public IPv6 literal, never a DNS name.
@@ -425,7 +537,7 @@ export function isPublicHostname(hostname, options) {
   }
   for (const cidr of opts.denyCidrs) if (cidrContains(cidr, host)) return false;
   if (opts.allowCidrs.length > 0 && !opts.allowCidrs.some((cidr) => cidrContains(cidr, host))) return false;
-  return checkHostPolicy(host, hostPolicyOrEmpty(opts)) === null;
+  return checkHostPolicy(host, hostPolicyOrEmpty(opts), opts.allowSingleLabelHostnames) === null;
 }
 
 /** Freeze a normalized policy, including every nested array, so a guard cannot drift. */

@@ -45,17 +45,31 @@ test('URL in key with safe value is checked', () => {
   assert.equal(r.ok, true); // key strings are not network destinations
 });
 
-test('depth cap prevents infinite recursion', () => {
+test('depth cap fails closed when a hostile URL is buried beyond it', () => {
   let node = { url: 'http://127.0.0.1/' };
   for (let i = 0; i < 20; i += 1) node = { child: node };
   const r = scanToolArguments(node, { ...HTTP, maxDepth: 5 });
-  assert.equal(r.ok, true); // deep SSRF not reached due to cap
+  assert.equal(r.truncated, true);
+  assert.equal(r.ok, false);
+  assert.equal(r.rejected, 0);
+  assert.equal(r.findings.length, 0);
+});
+
+test('node cap fails closed when a hostile URL is beyond the budget', () => {
+  const padding = Array.from({ length: 20 }, (_, i) => ({ filler: i }));
+  const value = { padding, nested: { url: 'http://127.0.0.1/' } };
+  const r = scanToolArguments(value, { ...HTTP, maxNodes: 6 });
+  assert.equal(r.truncated, true);
+  assert.equal(r.ok, false);
+  assert.equal(r.rejected, 0);
+  assert.equal(r.findings.length, 0);
 });
 
 test('node cap is enforced and reported', () => {
   const value = Array.from({ length: 100 }, (_, i) => ({ url: `https://example${i}.com/` }));
   const r = scanToolArguments(value, { ...HTTP, maxNodes: 5 });
   assert.equal(r.truncated, true);
+  assert.equal(r.ok, false);
   assert.ok(r.findings.length <= 5);
 });
 
